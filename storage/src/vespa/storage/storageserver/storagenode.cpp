@@ -20,6 +20,8 @@ LOG_SETUP(".node.server");
 
 using vespa::config::content::StorDistributionConfigBuilder;
 using vespa::config::content::core::StorServerConfigBuilder;
+using vespa::config::content::core::BucketspacesConfig;
+using vespa::config::content::core::BucketspacesConfigBuilder;
 using std::make_shared;
 
 namespace storage {
@@ -550,11 +552,31 @@ StorageNode::configure(std::unique_ptr<document::DocumenttypesConfig> config,
     }
 }
 
+namespace {
+
+std::unique_ptr<BucketspacesConfig>
+fakeOldBucketspacesConfig(const BucketspacesConfig &config)
+{
+    BucketspacesConfigBuilder builder;
+    builder.enableMultipleBucketSpaces = false;
+    for (const auto &documentType : config.documenttype) {
+        builder.documenttype.push_back(documentType);
+        builder.documenttype.back().bucketspace = "default";
+    }
+    return std::make_unique<BucketspacesConfig>(builder);
+}
+
+}
+
 void
 StorageNode::configure(std::unique_ptr<BucketspacesConfig> config)
 {
     {
         vespalib::LockGuard configLockGuard(_configLock);
+        if (config && !config->enableMultipleBucketSpaces) {
+            auto fakeConfig = fakeOldBucketspacesConfig(*config);
+            config = std::move(fakeConfig);
+        }
         _newBucketSpacesConfig = std::move(config);
     }
     if (_bucketSpacesConfig) {

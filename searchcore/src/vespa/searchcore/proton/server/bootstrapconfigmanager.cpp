@@ -7,6 +7,7 @@
 #include <vespa/config-bucketspaces.h>
 #include <vespa/searchlib/common/tunefileinfo.hpp>
 #include <vespa/vespalib/io/fileutil.h>
+#include <vespa/document/bucket/fixed_bucket_spaces.h>
 
 
 #include <vespa/log/log.h>
@@ -19,11 +20,28 @@ using search::TuneFileDocumentDB;
 using vespa::config::search::core::ProtonConfig;
 using cloud::config::filedistribution::FiledistributorrpcConfig;
 using vespa::config::content::core::BucketspacesConfig;
+using vespa::config::content::core::BucketspacesConfigBuilder;
 using document::DocumenttypesConfig;
 using document::DocumentTypeRepoFactory;
 using BucketspacesConfigSP = std::shared_ptr<BucketspacesConfig>;
 
 namespace proton {
+
+namespace {
+
+BucketspacesConfigSP
+fakeOldBucketspacesConfig(const BucketspacesConfig &config)
+{
+    BucketspacesConfigBuilder builder;
+    builder.enableMultipleBucketSpaces = false;
+    for (const auto &documentType : config.documenttype) {
+        builder.documenttype.push_back(documentType);
+        builder.documenttype.back().bucketspace = "default";
+    }
+    return std::make_shared<BucketspacesConfig>(builder);
+}
+
+}
 
 BootstrapConfigManager::BootstrapConfigManager(const vespalib::string & configId)
     : _pendingConfigSnapshot(),
@@ -106,6 +124,10 @@ BootstrapConfigManager::update(const ConfigSnapshot & snapshot)
     if (snapshot.isChanged<BucketspacesConfig>(_configId, currentGen)) {
         LOG(spam, "Bucketspaces config is changed");
         newBucketspacesConfig = snapshot.getConfig<BucketspacesConfig>(_configId);
+        if (newBucketspacesConfig && !newBucketspacesConfig->enableMultipleBucketSpaces) {
+            auto fakedBucketspacesConfig = fakeOldBucketspacesConfig(*newBucketspacesConfig);
+            newBucketspacesConfig = fakedBucketspacesConfig;
+        }
     }
     assert(newProtonConfig);
     assert(newFiledistRpcConfSP);
