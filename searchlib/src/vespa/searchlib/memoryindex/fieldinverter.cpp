@@ -252,7 +252,7 @@ FieldInverter::saveWord(const vespalib::stringref word)
     size_t len = strnlen(word.data(), word.size());
     if (len < word.size()) {
         const Schema::IndexField &field = _schema.getIndexField(_fieldId);
-        LOG(error, "Detected NUL byte in word, length reduced from %zu to %zu, field is %s, truncated word is %s", word.size(), len, field.getName().c_str(), word.data());
+        LOG(error, "Detected NUL byte in word, length reduced from %zu to %zu, lid is %u, field is %s, truncated word is %s", word.size(), len, _docId, field.getName().c_str(), word.data());
     }
     if (len == 0)
         return 0u;
