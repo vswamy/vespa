@@ -3,6 +3,7 @@
 #include <vespa/searchlib/index/docbuilder.h>
 #include <vespa/searchlib/memoryindex/fieldinverter.h>
 #include <vespa/searchlib/test/memoryindex/ordereddocumentinserter.h>
+#include <vespa/vespalib/objects/nbostream.h>
 #include <vespa/vespalib/testkit/testapp.h>
 #include <vespa/document/repo/fixedtyperepo.h>
 
@@ -96,6 +97,31 @@ makeDoc16(DocBuilder &b)
         addTermAnnotation("altbaz").addStr("y").addTermAnnotation("alty").
         addStr("z").endField();
     return b.endDocument();
+}
+
+vespalib::string corruptWord = "corruptWord";
+
+Document::UP
+makeCorruptDocument(DocBuilder &b, size_t wordOffset)
+{
+    b.startDocument("doc::corrupt");
+    b.startIndexField("f0").addStr("before").addStr(corruptWord).addStr("after").addStr("z").endField();
+    auto doc = b.endDocument();
+    vespalib::nbostream stream;
+    doc->serialize(stream);
+    std::vector<char> raw;
+    raw.resize(stream.size());
+    stream.read(&raw[0], stream.size());
+    assert(wordOffset < corruptWord.size());
+    for (size_t i = 0; i + corruptWord.size() <= raw.size(); ++i) {
+        if (memcmp(&raw[i], corruptWord.c_str(), corruptWord.size()) == 0) {
+            raw[i + wordOffset] = '\0';
+            break;
+        }
+    }
+    vespalib::nbostream badstream;
+    badstream.write(&raw[0], raw.size());
+    return std::make_unique<Document>(*b.getDocumentTypeRepo(), badstream);
 }
 
 }
@@ -323,6 +349,28 @@ TEST_F("require that multiple words at same position works", Fixture)
                  f._inserter.toStr());
 }
 
+TEST_F("require that word with NUL byte is truncated", Fixture)
+{
+    f.invertDocument(1, *makeCorruptDocument(f._b, 7));
+    f.pushDocuments();
+    EXPECT_EQUAL("f=0,"
+                 "w=after,a=1,"
+                 "w=before,a=1,"
+                 "w=corrupt,a=1,"
+                 "w=z,a=1",
+                 f._inserter.toStr());
+}
+
+TEST_F("require that word with NUL byte is dropped when truncated to zero length", Fixture)
+{
+    f.invertDocument(1, *makeCorruptDocument(f._b, 0));
+    f.pushDocuments();
+    EXPECT_EQUAL("f=0,"
+                 "w=after,a=1,"
+                 "w=before,a=1,"
+                 "w=z,a=1",
+                 f._inserter.toStr());
+}
 
 } // namespace memoryindex
 } // namespace search
