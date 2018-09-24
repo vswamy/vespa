@@ -8,9 +8,7 @@ namespace vespalib::net::tls {
 
 namespace {
 
-constexpr size_t min_header_size_to_observe = 8;
-
-// Precondition for all helper functions: buffer is at least `min_header_size_to_observe` bytes long
+// Precondition for all helper functions: buffer is at least `min_header_bytes_to_observe()` bytes long
 
 // From RFC 5246:
 // 0x16 - Handshake content type byte of TLSCiphertext record
@@ -58,10 +56,6 @@ inline bool handshake_record_size_matches_length(const char* buf, uint16_t lengt
 
 } // anon ns
 
-// Precondition: buf is at least `min_header_size_to_observe` bytes long. This is the minimum amount
-// of bytes always sent for a packet in our existing plaintext production protocols and
-// therefore the maximum we can expect to always be present.
-// Yes, this is a pragmatic and delightfully leaky abstraction.
 TlsSnoopingResult snoop_client_hello_header(const char* buf) noexcept {
     if (!is_tls_handshake_packet(buf)) {
         return TlsSnoopingResult::HandshakeMismatch;
