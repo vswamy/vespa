@@ -541,7 +541,7 @@ Proton::addDocumentDB(const document::DocumentType &docType,
     if (!_isInitializing || _initDocumentDbsInSequence) {
         ret->waitForOnlineState();
     }
-    _metricsEngine->addDocumentDBMetrics(ret->getMetricsCollection());
+    _metricsEngine->addDocumentDBMetrics(ret->getMetrics());
     _metricsEngine->addMetricsHook(ret->getMetricsUpdateHook());
     _documentDBMap[docTypeName] = ret;
     if (_persistenceEngine) {
@@ -597,7 +597,7 @@ Proton::removeDocumentDB(const DocTypeName &docTypeName)
     _summaryEngine->removeSearchHandler(docTypeName);
     _flushEngine->removeFlushHandler(docTypeName);
     _metricsEngine->removeMetricsHook(old->getMetricsUpdateHook());
-    _metricsEngine->removeDocumentDBMetrics(old->getMetricsCollection());
+    _metricsEngine->removeDocumentDBMetrics(old->getMetrics());
     _diskMemUsageSampler->notifier().removeDiskMemUsageListener(old->diskMemUsageListener());
     // Caller should have removed & drained relevant timer tasks
     old->close();
@@ -659,11 +659,10 @@ int countOpenFiles()
 }
 
 void
-updateExecutorMetrics(ExecutorMetrics &metrics, ExecutorMetrics &legacyMetrics,
+updateExecutorMetrics(ExecutorMetrics &metrics,
                       const vespalib::ThreadStackExecutor::Stats &stats)
 {
     metrics.update(stats);
-    legacyMetrics.update(stats);
 }
 
 }
@@ -690,16 +689,15 @@ Proton::updateMetrics(const vespalib::MonitorGuard &)
     }
     {
         ContentProtonMetrics::ProtonExecutorMetrics &metrics = _metricsEngine->root().executor;
-        LegacyProtonMetrics &legacyMetrics = _metricsEngine->legacyRoot();
-        updateExecutorMetrics(metrics.proton, legacyMetrics.executor, _executor.getStats());
+        updateExecutorMetrics(metrics.proton, _executor.getStats());
         if (_flushEngine) {
-            updateExecutorMetrics(metrics.flush, legacyMetrics.flushExecutor, _flushEngine->getExecutorStats());
+            updateExecutorMetrics(metrics.flush, _flushEngine->getExecutorStats());
         }
         if (_matchEngine) {
-            updateExecutorMetrics(metrics.match, legacyMetrics.matchExecutor, _matchEngine->getExecutorStats());
+            updateExecutorMetrics(metrics.match, _matchEngine->getExecutorStats());
         }
         if (_summaryEngine) {
-            updateExecutorMetrics(metrics.docsum, legacyMetrics.summaryExecutor, _summaryEngine->getExecutorStats());
+            updateExecutorMetrics(metrics.docsum, _summaryEngine->getExecutorStats());
         }
         if (_sharedExecutor) {
             metrics.shared.update(_sharedExecutor->getStats());
